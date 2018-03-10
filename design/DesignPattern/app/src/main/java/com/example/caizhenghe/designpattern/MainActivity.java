@@ -12,6 +12,8 @@ import com.example.caizhenghe.designpattern.abstractfactory.FactoryProducer;
 import com.example.caizhenghe.designpattern.abstractfactory.Green;
 import com.example.caizhenghe.designpattern.abstractfactory.Red;
 import com.example.caizhenghe.designpattern.build.Meal;
+import com.example.caizhenghe.designpattern.decorator.RedShapeShapeDecorator;
+import com.example.caizhenghe.designpattern.decorator.ShapeDecorator;
 import com.example.caizhenghe.designpattern.factory.Circle;
 import com.example.caizhenghe.designpattern.factory.Rectangle;
 import com.example.caizhenghe.designpattern.factory.Shape;
@@ -76,6 +78,16 @@ public class MainActivity extends AppCompatActivity {
          *  浅拷贝：只拷贝值，引用依然指向原来的对象
          *  深拷贝：所有数据都拷贝一份
          */
+
+        // 装饰者模式
+        ShapeDecorator recDecorator = new RedShapeShapeDecorator(rec);
+        recDecorator.draw();
+
+        ShapeDecorator circleDecorator = new RedShapeShapeDecorator(circle);
+        circleDecorator.draw();
+
+        ShapeDecorator squareDecorator = new RedShapeShapeDecorator(square);
+        squareDecorator.draw();
 
 
 
