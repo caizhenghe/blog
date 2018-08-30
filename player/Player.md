@@ -58,9 +58,17 @@ Audio：400 * 1024
 
 MaxFrame：128
 
+iIndexHead：第一帧的索引
+
+iIndexTail：最后一帧的下一帧的索引
+
+SpilitFrame：在最后一帧的iPos处追加一个帧（如果iPos是最后一帧的末尾，则它的作用是告诉别人这一帧已经填满）
+
 ### AVFrameQueue
 
 ## Demux
+
+一次Demux500个packet
 
 ## Decode
 
@@ -79,7 +87,9 @@ MaxFrame：128
 
 ## Mux
 
-一次Demux500个packet
+缓存一个I帧：
+
+
 
 ## 相关技术
 
