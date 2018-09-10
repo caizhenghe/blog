@@ -22,7 +22,11 @@
 
 8. bindService和startService，通过bindService绑定的Service生命周期依赖于启动它的组件，当启动它的组件被销毁时该Service也被销毁；通过startService启动的Service生命周期不依赖于启动它的组件，当启动它的组件（比如Activity）被销毁时，Service依然可以在后台运行。（TODO：这块知识点较多，待补充）
 
-9. 1
+9. 普通广播：若被注册的广播接收者的Action与发送的Action匹配，就能够收到广播（前提是发送的广播没有设置权限）；
+
+   系统广播：Android内置了多个系统广播，比如监听网络变化，电池电量低等，只需要在注册广播接收者时指定相应的Action即可接收到系统广播；
+
+   有序广播：Receiver会有序的接收到广播，按照接收者的优先级进行排序，若优先级相同，则动态注册的接收者优先（先接收到广播的接收者可以拦截或者修改广播，那么后续的接收者将无法接收广播或者是接收到修改后的广播）；App应用内广播（LocalBroadcast）：Android中的广播默认可以跨APP直接通信，会带来安全和效率的影响，所以推荐使用LocalBroadcast，手段有：1.注册接收者时将export置为false，2.收发广播时添加权限验证，3.发送广播时设置包名，4.发广播时使用封装好的LocalBroadcastManager。
 
 10. 事件分发的三个核心方法：dispatchTouchEvent、onTouchEvent、onInterceptTouchEvent。当事件分发给某个ViewGroup时，调用该ViewGroup的dispatchTouchEvent方法，在该方法中，首先会调用onInterceptTouchEvent方法判断是否拦截事件，若拦截则直接调用onTouchEvent方法处理该事件，若不拦截则将该事件分发给子View处理。
 
@@ -40,9 +44,13 @@
 
 17. Window有应用Window、子Window、系统Window。todo
 
-18. 1
+18. Handler的作用是将某个任务切换至Looper所在的线程去处理（若创建Handler时没有指定looper，则默认切换至创建Handler所在的线程，并使用该线程的looper处理任务）。
 
-19. ThreadLocal用于存储不同线程的数据副本。
+    - 若用户希望在A线程处理任务，首先在A线程创建并启动looper（主线程默认有MainLooper）。
+    - 在B线程调用Handler的send/post方法发送消息（消息的target参数持有该Handler对象），该消息会插入A线程的MessageQueue中。
+    - A线程的Looper从MessageQueue中获取消息并执行Handler的handleMessage方法，从而实现将B线程的任务切换至A线程执行。
+
+19. ThreadLocal用于存储不同线程的数据副本（实际场景是存储不同线程中的Looper对象）。
 
 20. Thread只是在run方法中执行任务；而HandlerThread维护了一个消息队列，可以通过Handler的方式传递消息给该线程执行，由于该线程的run方法是一个无限循环，因此当明确不再执行任务时，需要通过quit或quitSafely方法退出线程。
 
@@ -54,7 +62,13 @@
 
 24. TODO
 
-25. 不支持。尽量只使用一个进程（A）访问SharedPreference，若进程B想要访问SharedPreference，则需要通过Binder的方式通知进程A去取数据，再通过Binder将数据返回给进程B。（TODO：参数配置）
+25. 不支持。尽量只使用一个进程（A）访问SharedPreference，若进程B想要访问SharedPreference，则需要通过Binder的方式通知进程A去取数据，再通过Binder将数据返回给进程B。（不建议使用MODE_MULTI_PROCESS）
 
-26. 
+26. 通过设置BitmapFactory的内部类Options中的采样率来压缩图片；通过BitmapFactory的decode…方法获取压缩后的Bitmap对象，并设置给ImageView进行显示。
+
+27. LruCache是近期最少使用算法，属于内存级别的缓存，在内存缓存达到上限之前清除近期最少使用的缓存，以避免OOM异常。
+
+    DiskLruCache是硬盘级别的缓存，可以管理硬盘中图片的存储和清除。DiskLruCache在内存中有一个在本地生成一个journal文件，用于记录对缓存的操作信息，当下次打开APP时，通过该文件还原内存缓存。
+
+28. 1
 
