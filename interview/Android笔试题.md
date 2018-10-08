@@ -22,7 +22,7 @@
 18. 请描述Handler的运行机制以及Handler、Looper和MessageQueue三者的关系。
 19. ThreadLocal的用途是什么？
 20. HandlerThread和普通Thread的区别是什么？
-21. Thread和Service和IntentService均可用于执行后台任务，三者的区别是什么？
+21. Thread、Service和IntentService均可用于执行后台任务，三者的区别是什么？
 22. 线程池执行任务遵循怎样的规则？
 23. 请描述AsyncTask的运行机制。
 24. 请描述Binder、AIDL的概念和原理。

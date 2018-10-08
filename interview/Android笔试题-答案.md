@@ -26,7 +26,9 @@
 
    系统广播：Android内置了多个系统广播，比如监听网络变化，电池电量低等，只需要在注册广播接收者时指定相应的Action即可接收到系统广播；
 
-   有序广播：Receiver会有序的接收到广播，按照接收者的优先级进行排序，若优先级相同，则动态注册的接收者优先（先接收到广播的接收者可以拦截或者修改广播，那么后续的接收者将无法接收广播或者是接收到修改后的广播）；App应用内广播（LocalBroadcast）：Android中的广播默认可以跨APP直接通信，会带来安全和效率的影响，所以推荐使用LocalBroadcast，手段有：1.注册接收者时将export置为false，2.收发广播时添加权限验证，3.发送广播时设置包名，4.发广播时使用封装好的LocalBroadcastManager。
+   有序广播：Receiver会有序的接收到广播，按照接收者的优先级进行排序，若优先级相同，则动态注册的接收者优先（先接收到广播的接收者可以拦截或者修改广播，那么后续的接收者将无法接收广播或者是接收到修改后的广播）；
+
+   App应用内广播（LocalBroadcast）：Android中的广播默认可以跨APP直接通信，会带来安全和效率的影响，所以推荐使用LocalBroadcast，手段有：1.注册接收者时将export置为false，2.收发广播时添加权限验证，3.发送广播时设置包名，4.发广播时使用封装好的LocalBroadcastManager。
 
 10. 事件分发的三个核心方法：dispatchTouchEvent、onTouchEvent、onInterceptTouchEvent。当事件分发给某个ViewGroup时，调用该ViewGroup的dispatchTouchEvent方法，在该方法中，首先会调用onInterceptTouchEvent方法判断是否拦截事件，若拦截则直接调用onTouchEvent方法处理该事件，若不拦截则将该事件分发给子View处理。
 
