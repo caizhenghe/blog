@@ -37,3 +37,29 @@
    ```
 
 ## 动态任务定义和任务链
+
+```groovy
+task outter << {
+	inner() // 可以使用类似java方法的方式执行任务中的某个action
+}
+
+def inner() {
+	ant.echo(message: 'Repeat after me...') // gradle集成了ant的方法
+}
+
+3.times { //表示循环执行3次
+	task "father$it" << { // n.times作用域内的"$it"(必须用双引号包裹)表示当前的循环次数
+		print "$it" // task作用域内的"$it"表示task自身
+	}
+}
+
+father0.dependsOn outter // 依赖关系
+father2.dependsOn father0, father1
+
+task child(dependsOn: father2)
+```
+
+
+
+## Gradle命令行
+
