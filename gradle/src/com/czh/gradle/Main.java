@@ -1,7 +1,7 @@
 package com.czh.gradle;
 
 
-public class MainActivity {
+public class Main {
     public static void main(String[] args) {
         ToDo todo = new ToDo();
         todo.todo();

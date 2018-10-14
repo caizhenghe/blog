@@ -1,6 +1,44 @@
 
 apply plugin: 'java'
 
+version = 0.1 // 定义项目版本
+sourceCompatibility = 1.9 // 设置java版本编译兼容1.9
+
+jar { // 将Main-Class头添加到JAR文件代码清单中，在命令行中可以直接运行jar包
+	manifest {
+		attributes 'Main-Class': 'com.czh.gradle.Main'
+	}
+}
+
+sourceSets { // 自定义源码的位置，而不是默认的src/main/java
+	main {
+		java {
+			srcDirs = ['src']
+		}
+	}
+}
+
+// test {
+// 	java {
+// 		srcDirs = ['test'] // 自定义测试代码目录
+// 	}
+// }
+
+buildDir = 'out' // 自定义编译输出文件的目录
+
+repositories { // 定义仓库，集成了很多外部依赖的中心服务器
+	mavenCentral()
+}
+
+// dependencies { // 定义依赖,依赖由configuration分组，java引入的一种configuratino是compile
+// 	compile group: 'org.apache.commons', name: 'commons-lang3', version: '3.1'
+// }
+
+task wrapper(type: Wrapper) { // 配置包装器，让构建脚本运行在指定版本上，可以自动从中心仓库下载解压并使用gradle
+	gradleVersion = '4.4'
+}
+
+
 task outter << {
 	func() // 可以使用类似java方法的方式执行任务中的某个action
 }
