@@ -10,7 +10,7 @@
 
 3. 从Activity A跳转到Activity B，经历了如下生命周期：A.onPause，A.onStop，B.onCreate，B.onStart，B.onResume。其中能够确定的顺序有：A.onPause->A.onStop，B.onCreate->B.onStart->B.onResume，A.onPause->B.onResume，由于不是顺序阻塞的执行，因此无法确定B的onCreate/onStart和A的onStop之间的运行顺序。
 
-4. ![fragment_lifecycle](src\Fragment生命周期.png)
+4. ![fragment_lifecycle](doc_src/Fragment生命周期.png)
 
 5. 主要有以下两种情况：1.当Activity进入后台但还可能会回到前台时调用（比如点击Home键，进入下一个Activity）；2.当资源相关的系统配置发生变化导致Activity被杀死时调用（比如横竖屏切换）。当Activity再次显示或者创建时，系统会将存储的数据通过Bundle参数传递到onCreate和onRestoreInstanceState方法中。
 
