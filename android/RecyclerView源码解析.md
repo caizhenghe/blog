@@ -31,6 +31,8 @@ onBindViewHolder用于绑定View和Data，通过Data设置View的各项属性。
 ### 调整Item布局大小
 
 1. 将item最外层布局设置成wrap_content，根据内容自动适配大小。
+2. 在Adapter的onCreateViewHolder中动态修改item的大小。
+3. 重写LayoutManager的generateDefaultLayoutParams()方法修改item大小。(FIXME)
 
 ### 分割线
 
