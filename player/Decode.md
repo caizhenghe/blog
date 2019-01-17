@@ -19,8 +19,9 @@ JNIEXPORT jint JNICALL Java_com_czh_ffmpeg_mediakit_MediaKit_decodeNative
     int i, videoindex;
     AVCodecContext *pCodecCtx;
     AVCodec *pCodec;
-    // 定义两个Frame的用意是什么
+    // pFrame用于存储解码后的数据，pFrameYUV用于存储YUV420P格式的数据
     AVFrame *pFrame, *pFrameYUV;
+    /* 为pFrameYUV开辟的内存空间 */
     uint8_t *out_buffer;
     AVPacket *packet;
     int y_size;
@@ -33,9 +34,6 @@ JNIEXPORT jint JNICALL Java_com_czh_ffmpeg_mediakit_MediaKit_decodeNative
 
     char input_str[500] = {0};
     char output_str[500] = {0};
-    char info[1000] = {0};
-    sprintf(input_str, "%s", env->GetStringUTFChars(input_jstr, NULL));
-    sprintf(output_str, "%s", env->GetStringUTFChars(output_jstr, NULL));
 
     //FFmpeg av_log() callback
     av_log_set_callback(custom_log);
@@ -49,7 +47,7 @@ JNIEXPORT jint JNICALL Java_com_czh_ffmpeg_mediakit_MediaKit_decodeNative
     pFormatCtx = avformat_alloc_context();
 	// 打开输入流，将格式信息写入pFormatCtx
 	avformat_open_input(&pFormatCtx, input_str, NULL, NULL);
-    // 查询流信息（判断pFormatCtx是否有效？）
+    // 查询流信息（理论上在这一步实现了Demux）
     avformat_find_stream_info(pFormatCtx, NULL);
 
 	/* AVFormatContext */
@@ -80,9 +78,10 @@ JNIEXPORT jint JNICALL Java_com_czh_ffmpeg_mediakit_MediaKit_decodeNative
     /* imageutils.h */
     /* @brief 计算outbuffer的大小
 	pCodecCtx->width: 表示画面的宽度(px)
-    align: assumed linesize alignment，取1是什么含义？*/
+    align: assumed linesize alignment，取1表示需要校准linesize（32/64字节对齐）*/
             av_image_get_buffer_size(AV_PIX_FMT_YUV420P, pCodecCtx->width, pCodecCtx->height, 1));
-	// 将out_buffer中的数据填充到pFrameYUV中?
+	/* @brief 将out_buffer指针转换成pFrameYUV->data和pFrameYUV->linesize
+		align：是否需要校准，默认取1（字节对齐）*/ 
     av_image_fill_arrays(pFrameYUV->data, pFrameYUV->linesize, out_buffer,
                          AV_PIX_FMT_YUV420P, pCodecCtx->width, pCodecCtx->height, 1);
     packet = (AVPacket *) av_malloc(sizeof(AVPacket));
@@ -90,7 +89,7 @@ JNIEXPORT jint JNICALL Java_com_czh_ffmpeg_mediakit_MediaKit_decodeNative
 	/* swscale.h */
 	/* @brief 获取图像转换的Context
 	SwsContext：software scale， 用于视频图像缩放和格式转换
-	pCodecCtx->pix_fmt：转换前的格式（如h264），如果用户知晓则由用户指定，否则由demuxer或decoder指定。
+	pCodecCtx->pix_fmt：转换前的格式（指解码后格式，如AV_PIX_FMT_YUYV422、AV_PIX_FMT_BGR8），如果用户知晓则由用户指定，否则由demuxer或decoder指定。
 	AV_PIX_FMT_YUV420P：转换后的格式。
 	SWS_BICUBIC：转换算法。
 	sws_scale各种算法对比分析： https://blog.csdn.net/leixiaohua1020/article/details/12029505 */
@@ -101,15 +100,15 @@ JNIEXPORT jint JNICALL Java_com_czh_ffmpeg_mediakit_MediaKit_decodeNative
     fp_yuv = fopen(output_str, "wb+");
     frame_cnt = 0;
 	/* avformat.h */
-    // 每次读取一帧（此处packet代表帧）
+    // 每次读取一帧（此处的packet代表帧（PPS、SPS、I、P））
 	while (av_read_frame(pFormatCtx, packet) >= 0) {
         if (packet->stream_index == videoindex) {
         	/* avcodec.h */
-            // 对该帧进行解码，得到YUV数据（注意4字节和8字节对齐问题？）
+            // 对该帧进行解码
             ret = avcodec_decode_video2(pCodecCtx, pFrame, &got_picture, packet);
             if (got_picture) {
             	/* swscale.h */
-                // 图像转换（该步骤的作用是什么？）
+                // 图像转换（解码后的pFrame格式不一定是YUV420P，所以需要将格式转换成YUV420P）
                 sws_scale(img_convert_ctx, (const uint8_t *const *) pFrame->data, pFrame->linesize, 0, pCodecCtx->height, pFrameYUV->data, pFrameYUV->linesize);
 				// 分别将pFrameYUV->data中的y，u，v数据写到文件中
                 y_size = pCodecCtx->width * pCodecCtx->height;
@@ -139,8 +138,9 @@ JNIEXPORT jint JNICALL Java_com_czh_ffmpeg_mediakit_MediaKit_decodeNative
         av_free_packet(packet);
     }
     
-    //flush decoder，该步骤作用是什么？
-    //FIX: Flush Frames remained in Codec
+    /* @brief flush decoder
+    	上一步已经将数据全部送到了decoder中，这一步将decoder解码后的数据读完并写入文件
+        Tips：avcodec_decode_video2已经弃用，改用avcodec_send_packet送解码前数据，avcodec_receive_frame读解码后数据*/
     while (1) {
         ret = avcodec_decode_video2(pCodecCtx, pFrame, &got_picture, packet);
         if (ret < 0)
