@@ -8,17 +8,17 @@
 
 ## ViewRoot和DecorView
 
-- DecorView是一个顶级布局，一般情况下它内部会包含一个竖直方向的LinearLayout，在这个LinearLayout里面有上下两个部分，上面是标题栏，下面是内容栏。在Activity中我们通过setContentView所设置的布局其实就是设置在内容栏中。内容栏的id是content。获取content和我们设置的布局的方法如下：
+- DecorView是一个顶级布局，一般情况下它内部会包含一个竖直方向的LinearLayout，在这个LinearLayout里面有上下两个部分，上面是标题栏，下面是内容栏。在Activity中通过setContentView所设置的布局其实就是设置在内容栏中。内容栏的id是content。获取content和自定义布局的方法如下：
 
   ```java
-  ViewGroup content = (ViewGroup)getWindow().getDecorview().findViewById(android.R.id.content);  // 内容栏
-  View view = content.getChildAt(0);  // 我们设置的布局
+  ViewGroup content = (ViewGroup)getWindow().getDecorview().findViewById(android.R.id.content); // 内容栏
+  View view = content.getChildAt(0);  // 自定义布局
   ```
 
-  ![DecorView](DecorView.png)
+  ![DecorView](doc_src/DecorView.png)
 
 
-- ViewRoot内部持有一个DecorView的对象，View绘制的三大流程均是通过ViewRoot来完成的。
+- ViewRoot内部持有一个DecorView的对象，View绘制的三大流程均通过ViewRoot来完成。
 
 
 > ViewRoot对应于ViewRootImpl类，它是连接WindowManager和DecorView的纽带。在ActivityThread中，当Activity被创建完毕后，会将DecorView添加到Window中，同时创建ViewRootImpl对象，并将ViewRootImpl对象和DecorView建立关系。
