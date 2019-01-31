@@ -381,7 +381,44 @@ public abstract static abstract class Stub extends android.os.Binder implements 
 
 如果服务进程由于某种原因异常终止，需要通知客户端连接已经断开。Binder中提供了两个配对的方法linkToDeath和unlinkToDeath。客户端可以通过linkToDeath给Binder设置一个死亡代理。当Binder死亡时，客户端会收到通知并重新发起连接请求从而恢复连接。代码如下：
 
-### RemoteCallbackList
+```java
+// 连接建立成功后注册死亡代理。
+ServiceConnection mConn = new ServiceConnection() {
+    @Override
+    public void onServiceConnected(ComponentName name, IBinder service) {
+        mIBookManager = IBookManager.Stub.asInterface(service);
+        try {
+            service.linkToDeath(Recipient, 0);
+        } catch (RemoteException e) {
+            e.printStackTrace();
+        }
+    }
+    @Override
+    public void onServiceDisconnected(ComponentName name) {
+        mIBookManager = null;
+    }
+};
+
+// 监听到Binder死亡时注销死亡代理，并重启Service
+IBinder.DeathRecipient Recipient = new IBinder.DeathRecipient() {
+    @Override
+    public void binderDied() {
+        if (mIBookManager == null)
+            return;
+        mIBookManager.asBinder().unlinkToDeath(Recipient, 0);
+        mIBookManager = null;
+        // 重新绑定远程service
+        Intent intent = new Intent();
+        ComponentName name = new ComponentName("com.tplink.sdk.aidlserver", "com.tplink.sdk.aidlserver.AIDLService");
+        intent.setComponent(name);
+        bindService(intent, mConn, BIND_AUTO_CREATE);
+    }
+};
+```
+
+### 观察者模式
+
+### RemoteCallbackListener
 
 ## Messenger
 
