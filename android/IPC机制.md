@@ -183,6 +183,12 @@ public class MainActivity extends AppCompatActivity {
         intent.setComponent(name);
         bindService(intent, mConn, BIND_AUTO_CREATE);
     }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        unbindService(mConn);
+    }
 }
 ```
 
@@ -195,19 +201,15 @@ public class MainActivity extends AppCompatActivity {
 
 创建代表服务端的工程AIDLServer，将客户端生成的IBookManager.java复制到该工程中。
 
-**TIPS：服务器的Book.java和IBookManager.java的包名、类名、DESCRIPTOR标识必须和客户端保持一致**。
+**Notice：服务器的Book.java和IBookManager.java的包名、类名、DESCRIPTOR标识必须和客户端保持一致**。
 
 添加AIDLService文件，用于向客户端返回服务端实现的Binder对象，源码如下：
 
 ```java
 public class AIDLService extends Service {
     private static final String TAG = AIDLService.class.getSimpleName();
-    private List<Book> mBookList;
+    private CopyOnWriteArrayList<Book> mBookList;
     private IBinder mBinder = new IBookManager.Stub() {
-        @Override
-        public void basicTypes(int anInt, long aLong, boolean aBoolean, float aFloat, double aDouble, String aString) throws RemoteException {
-
-        }
 
         @Override
         public void addBook(Book book) throws RemoteException {
@@ -223,10 +225,13 @@ public class AIDLService extends Service {
     @Override
     public IBinder onBind(Intent intent) {
         Log.d(TAG, "server service onBind");
-        mBookList = new ArrayList<>();
+        mBookList = new CopyOnWriteArrayList<>();
         return mBinder;
     }
+}
 ```
+
+> CopyOnWriteArrayList：写时复制容器。通俗的理解是当我们往一个容器添加元素时，不直接往当前容器添加，而是先将当前容器进行Copy，往Copy出来的新容器中添加元素，添加完元素再将原容器的引用指向新的容器。这样做的好处是可以支持一个线程写，多个线程读而不用加锁（多个线程写依旧要加锁）。体现了读写分离的思想。
 
 在AndroidManifest.xml文件中静态注册Service：
 
@@ -417,6 +422,155 @@ IBinder.DeathRecipient Recipient = new IBinder.DeathRecipient() {
 ```
 
 ### 观察者模式
+
+假设现在有这样的需求：客户端不主动发送请求，而是由服务器推送消息给客户端，该如何处理？直接的想法就是客户端给服务器设置回调函数。但RPC（Remote Procedure  Call）不同于一般的本地调用，需要借助于AIDL来实现回调的功能。步骤如下：
+
+1. 创建一个AIDL文件，声明回调接口：
+
+   ```java
+   // IOnNewBookArrivedListener.aidl
+   package com.tplink.sdk.aidlclient.aidl;
+   import com.tplink.sdk.aidlclient.aidl.Book;
+   
+   interface IOnNewBookArrivedListener {
+       void onBookArrived(in Book newBook);
+   }
+   ```
+
+2. 在IBookManager.aidl文件添加两个函数，分别用于注册和注销接口：
+
+   ```java
+   // IBookManager.aidl
+   package com.tplink.sdk.aidlclient.aidl;
+   import com.tplink.sdk.aidlclient.aidl.Book;
+   import com.tplink.sdk.aidlclient.aidl.IOnNewBookArrivedListener;
+   
+   interface IBookManager {
+       void addBook(in Book book);
+   
+       List<Book> getBookList();
+   
+       void registerListener(IOnNewBookArrivedListener listener);
+   
+       void unregisterListener(IOnNewBookArrivedListener listener);
+   }
+   ```
+
+3. 通过AIDL生成最新的IBookManager.java和IOnNewBookArrivedListener.java文件后，将它们拷贝至服务器。在服务器实现新添加的注册和注销接口，并且在Service中开辟子线程，每隔5s添加一本书并向客户端发送回调：
+
+   ```java
+   public class AIDLService extends Service {
+       private static final String TAG = AIDLService.class.getSimpleName();
+       private AtomicBoolean mIsServiceDestroyed = new AtomicBoolean(false);
+       private CopyOnWriteArrayList<Book> mBookList = new CopyOnWriteArrayList<>();
+       private CopyOnWriteArrayList<IOnNewBookArrivedListener> mListenerList= new CopyOnWriteArrayList<>();
+       private IBinder mBinder = new IBookManager.Stub() {
+   		// ...
+           @Override
+           public void registerListener(IOnNewBookArrivedListener listener) throws RemoteException {
+               if (!mListenerList.contains(listener))
+                   mListenerList.add(listener);
+           }
+   
+           @Override
+           public void unregisterListener(IOnNewBookArrivedListener listener) throws RemoteException {
+               if (!mListenerList.contains(listener))
+                   mListenerList.remove(listener);
+               else
+           }
+       };
+   
+       @Nullable
+       @Override
+       public IBinder onBind(Intent intent) {
+           return mBinder;
+       }
+   
+       @Override
+       public void onCreate() {
+           super.onCreate();
+           mBookList.add(new Book(1, "Android"));
+           mBookList.add(new Book(2, "Java"));
+           new Thread(new ServiceWorker()).start();
+       }
+   
+       @Override
+       public void onDestroy() {
+           super.onDestroy();
+           mIsServiceDestroyed.set(true);
+       }
+   
+       private class ServiceWorker implements Runnable {
+   
+           @Override
+           public void run() {
+               // do background processing
+               while (!mIsServiceDestroyed.get()) {
+                   try {
+                       Thread.sleep(5000);
+                   } catch (InterruptedException e) {
+                       e.printStackTrace();
+                   }
+                   int bookId = mBookList.size() + 1;
+                   Book newBook = new Book(bookId, "NewBook#" + bookId);
+                   mBookList.add(newBook);
+                   try {
+                       for (IOnNewBookArrivedListener listener : mListenerList) {
+                           listener.onBookArrived(newBook);
+                       }
+                   } catch (RemoteException e) {
+                       e.printStackTrace();
+                   }
+               }
+           }
+       }
+   }
+   ```
+
+4. 修改客户端相关代码，在拿到服务器实现的Stub之后注册客户端实现的回调接口，注意该回调接口默认在Binder线程池中执行，需要通过Handler将其切换至UI线程执行：
+
+   ```java
+   ServiceConnection mConn = new ServiceConnection() {
+   	@Override
+   	public void onServiceConnected(ComponentName name, IBinder service) {
+   	    mIBookManager = IBookManager.Stub.asInterface(service);
+   	    try {
+   	        mIBookManager.registerListener(mArriveListener);
+   	        service.linkToDeath(Recipient, 0);
+   	    } catch (RemoteException e) {
+   	        e.printStackTrace();
+   	    }
+   	}
+   	@Override
+   	public void onServiceDisconnected(ComponentName name) {
+   	    try {
+   	        mIBookManager.unregisterListener(mArriveListener);
+   	    } catch (RemoteException e) {
+   	        e.printStackTrace();
+   	    }
+   	    mIBookManager = null;
+   	}
+   };
+   
+   IOnNewBookArrivedListener mArriveListener = new IOnNewBookArrivedListener.Stub() {
+   	@Override
+   	public void onBookArrived(Book newBook) throws RemoteException {
+   	    mHandler.post(new Runnable() {
+   	        @Override
+   	        public void run() {
+   	            if (mIBookManager == null) return;
+   	            try {
+   	                List<Book> bookList = mIBookManager.getBookList();
+   	                TextView tv = findViewById(R.id.tv_book_list);
+   	                tv.setText(bookList.toString());
+   	            } catch (RemoteException e) {
+   	                e.printStackTrace();
+   	            }
+   	        }
+   	    });
+   	}
+   };
+   ```
 
 ### RemoteCallbackListener
 
