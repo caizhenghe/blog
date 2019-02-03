@@ -437,7 +437,7 @@ IBinder.DeathRecipient Recipient = new IBinder.DeathRecipient() {
    }
    ```
 
-2. 在IBookManager.aidl文件添加两个函数，分别用于注册和注销接口：
+2. 在IBookManager.aidl文件添加两个函数，分别用于注册和注销回调接口：
 
    ```java
    // IBookManager.aidl
@@ -456,7 +456,7 @@ IBinder.DeathRecipient Recipient = new IBinder.DeathRecipient() {
    }
    ```
 
-3. 通过AIDL生成最新的IBookManager.java和IOnNewBookArrivedListener.java文件后，将它们拷贝至服务器。在服务器实现新添加的注册和注销接口，并且在Service中开辟子线程，每隔5s添加一本书并向客户端发送回调：
+3. 通过AIDL生成最新的IBookManager.java和IOnNewBookArrivedListener.java文件后，将它们拷贝至服务器。在服务器实现注册和注销回调接口的函数。并且在Service中开辟子线程，每隔5s添加一本书并通过回调接口向客户端发起推送：
 
    ```java
    public class AIDLService extends Service {
