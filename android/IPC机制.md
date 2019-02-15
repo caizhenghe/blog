@@ -4,6 +4,7 @@
 | --------- | ------ | ---------- | ----------------------- |
 | V1.0/草稿 | 蔡政和 | 2019/01/26 | 创建Android IPC机制文档 |
 | V1.0/草稿 | 蔡政和 | 2019/01/29 | 添加Messenger章节       |
+| V1.0/草稿 | 蔡政和 | 2019/02/15 | 完善Binder章节          |
 
 [TOC]
 
@@ -574,10 +575,240 @@ IBinder.DeathRecipient Recipient = new IBinder.DeathRecipient() {
 
 ### RemoteCallbackListener
 
+**功能介绍**
+
+上一章节中观察者模式在注销监听时还存在一些问题：退出页面时会调用onDestroy的unbindService方法，但不会执行onServiceDisconnected回调。因此需要将注销监听的操作移至onDestroy方法中：
+
+```java
+@Override
+protected void onDestroy() {
+    if (mIBookManager != null && mIBookManager.asBinder().isBinderAlive()) {
+        try {
+            mIBookManager.unregisterListener(mArriveListener);
+        } catch (RemoteException e) {
+            e.printStackTrace();
+        }
+        mIBookManager = null;
+    }
+    unbindService(mConn);
+    super.onDestroy();
+}
+```
+
+这样做就可以成功注销客户端的回调方法了吗？看看服务端的Log：
+
+> 02-15 15:25:58.477 31406-31434/com.tplink.sdk.aidlserver D/AIDLService: Listener not found, unregister fail!
+> 02-15 15:25:58.477 31406-31434/com.tplink.sdk.aidlserver D/AIDLService: unregisterListener: size = 1
+
+可以发现监听注销失败，因为在多进程的环境下，Binder会将客户端传递过来的对象转换成一个新的对象。虽然注册和解注册使用的是用一个客户端对象，但是传递到服务端后会生成两个全新的对象。
+
+为了解决这个问题，需要使用RemoteCallbackList，RemoteCallbackList是用于删除跨进程listener的系统接口，它的内部有一个Map专门保存所有AIDL回调：
+
+`ArrayMap<IBinder, Callback>mCallbacks = new ArrayMap<IBinder, Callback>();`
+
+其中Callback中封装了真正的远程listener：
+
+`IBinder key = listener.asBinder()`
+
+`Callback value = new Callback(listener, cookie)`
+
+虽然跨进程传输客户端的同个对象会在服务端生成不同对象，但是这些新生成的对象有个共同点：它们底层的Binder对象是同一个。这样就能实现我们解注册的功能。
+
+除了上述功能，RemoteCallbackList还具有以下优势：
+
+- 当客户端进程终止后，它能够自动移除客户端所注册的listener。
+- RemoteCallbackList内部自动实现了线程同步的功能，使用它来注册和解注册时，不需要做额外的线程同步工作。
+
+**实现步骤**
+
+对服务端的BookManagerService做一些修改即可：
+
+1. 首先使用RemoteCallbackList替代之前的CopyOnWriteArrayList：
+
+   ```java
+   private RemoteCallbackList<IOnNewBookArrivedListener> mListenerList = new RemoteCallbackList<>();
+   ```
+
+2. 修改registerListener和unregisterListener两个接口：
+
+   ```java
+   @Override
+   public void registerListener(IOnNewBookArrivedListener listener) throws RemoteException {
+       mListenerList.register(listener);
+   }
+   @Override
+   public void unregisterListener(IOnNewBookArrivedListener listener) throws RemoteException {
+       mListenerList.unregister(listener);
+   }
+   ```
+
+3. 修改ServiceWorker中onBookArrived的调用方式：
+
+   ```java
+   private class ServiceWorker implements Runnable {
+       @Override
+       public void run() {
+           // do background processing
+           while (!mIsServiceDestroyed.get()) {
+               try {
+                   Thread.sleep(5000);
+               } catch (InterruptedException e) {
+                   e.printStackTrace();
+               }
+               int bookId = mBookList.size() + 1;
+               Book newBook = new Book(bookId, "NewBook#" + bookId);
+               mBookList.add(newBook);
+               final int N = mListenerList.beginBroadcast();
+               for (int i = 0; i < N; i++) {
+                   try {
+                       IOnNewBookArrivedListener listener = mListenerList.getBroadcastItem(i);
+                       listener.onBookArrived(newBook);
+                   } catch (RemoteException e) {
+                       e.printStackTrace();
+                   }
+               }
+               mListenerList.finishBroadcast();
+           }
+       }
+   }
+   ```
+
+
+
 ## Messenger
 
-## ContentProvider
+Messenger是一种轻量级的IPC方案，它的底层实现是AIDL。Messenger服务端不存在并发执行的情形，一次处理一个请求，不需要考虑线程同步的问题。
+
+### 客户端
+
+客户端调用bindService方法连接服务器的Service，在onServiceConnected回调中给服务器发送一条消息。并且通过Message的replyTo参数传递mReplyMessenger给服务器，用于让服务器返回应答。
+
+```java
+public class SecondActivity extends AppCompatActivity {
+    static class ReplyHandler extends Handler {
+        @Override
+        public void handleMessage(Message msg) {
+            switch (msg.what) {
+                case 200:
+                    Log.d("tag", "receive msg from Service: " + msg.getData().getString("reply"));
+                    break;
+                default:
+                    super.handleMessage(msg);
+                    break;
+            }
+
+        }
+    }
+
+    Messenger mMessenger, mReplyMessenger = new Messenger(new ReplyHandler());
+
+    ServiceConnection mConn = new ServiceConnection() {
+        @Override
+        public void onServiceConnected(ComponentName name, IBinder service) {
+            mMessenger = new Messenger(service);
+            Message msg = Message.obtain(null, 100);
+            Bundle bundle = new Bundle();
+            bundle.putString("msg", "hello, this is client.");
+            msg.setData(bundle);
+            msg.replyTo = mReplyMessenger;
+            try {
+                mMessenger.send(msg);
+            } catch (RemoteException e) {
+                e.printStackTrace();
+            }
+        }
+
+        @Override
+        public void onServiceDisconnected(ComponentName name) {
+        }
+    };
+
+    @Override
+    protected void onCreate(@Nullable Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_main);
+
+        Intent intent = new Intent();
+        ComponentName name = new ComponentName("com.tplink.sdk.aidlserver", "com.tplink.sdk.aidlserver.MessengerService");
+        intent.setComponent(name);
+        bindService(intent, mConn, BIND_AUTO_CREATE);
+    }
+
+    @Override
+    protected void onDestroy() {
+        unbindService(mConn);
+        super.onDestroy();
+    }
+}
+```
+
+
+
+### 服务端
+
+服务端逻辑较为简单，注册一个Service，并在onBind回调中返回Messenger对象即可。该对象用于让客户端给服务器发送消息。
+
+```java
+public class MessengerService extends Service {
+    private static final String TAG = MessengerService.class.getSimpleName();
+
+    private final Messenger mMessenger = new Messenger(new MessengerHandler());
+
+    private static class MessengerHandler extends Handler {
+        @Override
+        public void handleMessage(Message msg) {
+            switch (msg.what) {
+                case 100:
+                    Log.d(TAG, "receive msg from client: " + msg.getData().getString("msg"));
+                    Messenger client = msg.replyTo;
+                    Message reply = Message.obtain(null, 200);
+                    Bundle bundle = new Bundle();
+                    bundle.putString("reply", "嗯，你的消息我已经收到了，稍后回复你。");
+                    reply.setData(bundle);
+                    try {
+                        client.send(reply);
+                    } catch (RemoteException e) {
+                        e.printStackTrace();
+                    }
+                    break;
+                default:
+                    super.handleMessage(msg);
+                    break;
+            }
+
+        }
+    }
+
+    @Nullable
+    @Override
+    public IBinder onBind(Intent intent) {
+        Log.d(TAG, "server service onBind");
+        return mMessenger.getBinder();
+    }
+
+
+    @Override
+    public void onDestroy() {
+        super.onDestroy();
+    }
+}
+```
+
+
 
 ## Socket
 
+`TODO`
+
 ## 选用合适的IPC机制
+
+最后，总结一下上述所有IPC方式的优缺点和适用场景：
+
+| 名称            | 优点                                                         | 缺点                                                         | 适用场景                                                     |
+| --------------- | ------------------------------------------------------------ | ------------------------------------------------------------ | ------------------------------------------------------------ |
+| Bundle          | 简单易用                                                     | 只能传输Bundle支持的数据类型                                 | 四大组件间的进程间通信                                       |
+| 文件共享        | 简单易用                                                     | 不适合高并发场景，并且无法做到进程间的即时通信               | 无并发访问情形，交换简单的数据实时性不高的场景               |
+| AIDL            | 功能强大，支持一对多并发通信，支持实时通信                   | 使用稍复杂，需要处理好线程同步                               | 一对多通信且有RPC需求                                        |
+| Messenger       | 功能一般，支持一对多串行通信，支持实时通信                   | 不能很好处理高并发情形，不支持RPC，数据通过Message进行传输，因此只能传输Bundle支持的数据类型 | 低并发的一对多即时通信，无RPC需求，或者无须要返回结果的RPC需求 |
+| ContentProvider | 在数据源访问方面功能强大，支持一对多并发数据共享，可通过Call方法扩展其他操作 | 可以理解为受约束的AIDL，主要提供数据源的CRUD操作             | 一对多的多进程间数据共享                                     |
+| Socket          | 功能强大，可以通过网络传输字节流，支持一对多并发实时通信     | 实现细节稍微有点繁琐，不支持直接的RPC                        | 网络数据交换                                                 |
