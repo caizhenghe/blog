@@ -2,23 +2,37 @@
 
 
 
-## 概述
+## 前言
 
 Android通过OpenGLES来显示YUV数据，这样做的原因是：
 
 1. Android本身不能直接显示YUV图像，YUV需要转成RGB再进行渲染。
 2. YUV手动转换成RGB会占用大量的CPU，尽量让GPU来做这件事。
-3. OpenGLES是Android集成到自身框架里的第三方库，它有很多的可取之处。 
+3. OpenGLES是Android集成到自身框架里的第三方库，有很多可取之处。 
 
-使用OpenGLES渲染YUV数据有两种方式：`GLSurfaceView`和`TextureView`，下面详细介绍这两种方式的使用步骤。
+使用OpenGLES渲染YUV数据通常包含两种方式：`GLSurfaceView`和`TextureView`，下面将详细介绍这两种方式的使用方式。
 
-## GLSurfaceView
+## 概念介绍
+
+### SurfaceView
+
+### GLSurfaceView
+
+### SurfaceTexture
+
+### TextureView
+
+### 区分和联系
+
+## GLSurfaceView使用方式
 
 使用GLSurfaceView渲染YUV数据涉及到三个组件，分别是：
 
-1. GLProgram：负责生成YUV数据，并且封装了一系列native层的opengl方法。
-2. GLSurfaceView：显示贴图的控件。
-3. Renderer：负责将GLProgram生成的YUV数据贴到GLSurfaceView上。
+1. GLSurfaceView：显示贴图的控件。
+2. Renderer：提供对GLSurfaceView状态的监听，当Surface创建、改变或绘制Frame时，告知外部调用者。
+3. GLProgram：封装了一系列OpenGL接口，负责将视频帧转换成纹理（Shader）并贴到GLSurfaceView上。
+
+本文主要介绍GLSurfaceView以及Renderer的使用技巧，不对GLProgram内部实现做过多描述。
 
 在开始实现渲染功能之前，首先判断一下手机是否支持OpenGLES2.0（一般的手机均会支持）：
 
@@ -32,15 +46,11 @@ public static boolean detectOpenGLES20(Context context) {
 
 ### 各组件之间的关系
 
-实现渲染功能，首先需要确定各个组件之间的依赖关系，从而设计出较为完善的渲染模型。上一章节提到了GLSurfaceView、Renderer、GLProgram三大组件，Renderer作为渲染的中枢，持有GLSurfaceView、GLProgram，而GLSurfaceView为了显示贴图，也需要使用Renderer。因此它们之间的UML类图如下所示：
-
-![GLSurfaceView1](doc_src/GLSurfaceView1.png)
-
-正常情况下，外部调用者只想使用GLSurfaceView来渲染数据。上述设计的缺陷在于，外部调用者必须知道Renderer的存在，在外部创建Renderer并手动设置给GLSurfaceView，使用较为复杂。并且由外部调用者控制setRenderer的时机是一种危险行为：
+正常情况下，外部调用者只想使用GLSurfaceView来渲染数据， 不需要知道Renderer的存在。若由外部调用者并且由外部调用者控制setRenderer的时机是一种危险行为：
 
 > 当GLSurfaceView处于可见状态时，会触发GLSurfaceView.surfaceCreated()，此时GLThread必须已经存在并处于运行状态，并相应调用Renderer.onSurfaceCreated();如果GLThread不存在（setRenderer()还没有被调用），就会引起崩溃；一个保险的做法是创建GLSurfaceView后先调用getHolder().removeCallback(this)，然后在setRenderer()之后再重新调用getHolder().addCallback()来规避上述情况发生。当然，如果在触发GLSurfaceView.surfaceCreated()前已经调用过setRenderer()，上述情况不会发生。 
 
-Renderer本质上是GLSurfaceView内部定义的接口，为了提升GLSurfaceView的内聚性，简化外部调用者的使用流程，可以直接定义子类继承GLSurfaceView并实现Renderer接口。由GLSurfaceView内部决定setRenderer的时机（通常在构造方法中），避免上述的崩溃问题。优化后的UML类图如下所示：
+为了提升GLSurfaceView的内聚性和安全性，简化外部调用者的使用流程，可以直接定义子类继承GLSurfaceView并实现Renderer接口。由GLSurfaceView内部决定setRenderer的时机（通常在构造方法中），避免上述的崩溃问题。优化后的UML类图如下所示：
 
 ![GLSurfaceView2](doc_src/GLSurfaceView2.png)
 
@@ -121,5 +131,16 @@ public class GLRenderView extends GLSurfaceView implements GLSurfaceView.Rendere
 }
 ```
 
+### GLProgram
 
+TODO
 
+## SurfaceTexture
+
+## TextureView
+
+### 与GLSurfaceView的区别
+
+### Renderer
+
+### TextureView
