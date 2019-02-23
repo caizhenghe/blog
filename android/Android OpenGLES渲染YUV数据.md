@@ -95,7 +95,7 @@ public static boolean detectOpenGLES20(Context context) {
 
 > 一个保险的做法是创建GLSurfaceView后先调用getHolder().removeCallback(this)，然后在setRenderer()之后再重新调用getHolder().addCallback()来规避上述情况发生。当然，如果在触发GLSurfaceView.surfaceCreated()前已经调用过setRenderer()，上述情况不会发生。
 
-为了提升GLSurfaceView的内聚性和安全性，简化外部调用者的使用流程，可以直接定义子类继承GLSurfaceView并实现Renderer接口。由GLSurfaceView内部决定setRenderer的时机（通常在构造方法中），避免上述的崩溃问题。优化后的UML类图如下所示：
+为了提升GLSurfaceView的内聚性，简化外部调用者的使用流程，可以直接定义子类继承GLSurfaceView并实现Renderer接口。由GLSurfaceView内部决定setRenderer的时机（通常在构造方法中），避免上述的崩溃问题。优化后的UML类图如下所示：
 
 ![GLSurfaceView2](doc_src/GLSurfaceView2.png)
 
@@ -113,7 +113,7 @@ public static boolean detectOpenGLES20(Context context) {
 
   以上方法都运行在setRender()时创建的GLThread中；GLThread也实现了工作thread与surface，program的绑定；
 
-综上，实现Renderer后的GLSurfaceView核心代码如下：
+核心代码如下：
 
 ```java
 public class TPGLRenderView extends GLSurfaceView implements GLSurfaceView.Renderer {
@@ -148,19 +148,104 @@ public class TPGLRenderView extends GLSurfaceView implements GLSurfaceView.Rende
 
 考虑到后续还要使用TextureView渲染数据，因此将创建、调用GLProgram的相关流程封装在TPGLRenderer.java文件中，本文档中不再展开介绍。
 
-### 使用方式
+### 内部实现
 
-TPGLRenderView的使用方式请
+除了Renderer以外，TPGLRenderView中还集成了很多业务相关功能（singleTouch、doubleTouch、cancelZoom等），最终均调用了GLProgram相关的接口，此处不再展开介绍。本章节主要讲述TPGLRenderView的构造方法和renderFrame方法。
+
+构造方法的代码如下：
+
+```java
+public TPGLRenderView(Context context) {
+	super(context);
+	setRenderer(this);
+	setRenderMode(GLSurfaceView.RENDERMODE_WHEN_DIRTY);
+	mFrame = new TPAVFrame();
+	mIsNewFrame = false;
+	mLock = new Object();
+	mGLRenderer = new TPGLRenderer();
+}
+```
+
+可以看到，构造方法的第一行就是将实现的Renderer接口设置给GLSurfaceView，避免引起崩溃。setRenderMode方法用于控制GLSurfaceView渲染的时机，参数含义如下：
+
+- RENDERMODE_WHEN_DIRTY：当Surface创建或requestRender方法被调用时重绘画面。
+- RENDERMODE_CONTINUOUSLY：持续重绘画面，重绘频率与手机屏幕一致。
+
+renderFrame方法用于传递并渲染一个视频帧，代码如下：
+
+```java
+public void renderFrame(TPAVFrame frame) {
+	/* 在GLThread线程里会访问mFrame进行渲染，所以这里要加锁避免访问冲突 */
+	synchronized (mLock) {
+	    mFrame.RefFrom(frame);
+	    mIsNewFrame = true;
+	    requestRender();
+	}
+}
+```
+
+RefFrom方法用于拷贝一份视频帧数据。该方法在主线程执行，需要加锁，避免拷贝数据时渲染线程访问该帧。拷贝完后调用requestRender方法通知GLSurfaceView重新绘制。
+
+### 外部调用
+
+TPGLRenderView内部已经实现了Renderer接口，对于外部调用者来说，只需做以下几个步骤：
+
+1. 创建TPGLRenderView。
+2. 设置播放参数DisplayInfo、ScaleMode和DisplayMode。
+3. 传递视频帧数据。
+4. 开始播放。
+
+示例代码如下：
+
+```java
+TPGLRenderView mGLView = new TPGLRenderView(getActivity());
+TPDisplayInfoFishEye displayInfo = new TPDisplayInfoFishEye(
+        mDevice.isFishEyeCircle(),
+        mDevice.isFishEyeCenterCalibration(),
+        mDevice.getFishEyeInvalidPixelRatio(),
+        mDevice.getFishEyeCirlceCenterX(),
+        mDevice.getFishEyeCircleCenterY(),
+        mDevice.getFishEyeRadius());
+mGLView.setDisplayInfo(displayInfo);
+mGLView.setScaleMode(TPPlayerCommon.TPPLAYER_DISPLAY_SCALE_MODE_FILL);
+mGLView.renderFrame(mTPAVFrame);
+mGLView.setDisplayMode(TPPlayerCommon.TPPLAYER_DISPLAY_MODE_FISHEYE_LONGITUDE);
+mGLView.start();
+```
 
 ### 缺陷
 
-使用GLSurfaceView渲染YUV数据的功能已经实现，将其放入列表中显示，会发现列表的滑动非常卡顿。从线程和渲染两部分分析卡顿的原因：
+GLSurfaceView内部实现简单，外部调用方便，但是它也有不足之处：将GLSurfaceView放入RecyclerView中，会发现列表的滑动非常卡顿。主要有以下两方面的因素：
 
+1. 线程：VIew滑出界面后渲染线程将被销毁，此时主线程会阻塞的等待渲染线程销毁后再继续执行，导致UI卡顿。相关代码如下：
 
+   ```java
+   public void requestExitAndWait() {
+   	// don't call this from GLThread thread or it is a guaranteed
+   	// deadlock!
+   	synchronized(sGLThreadManager) {
+   	    mShouldExit = true;
+   	    sGLThreadManager.notifyAll();
+   	    while (! mExited) {
+   	        try {
+   	            sGLThreadManager.wait();
+   	        } catch (InterruptedException ex) {
+   	            Thread.currentThread().interrupt();
+   	        }
+   	    }
+   	}
+   }
+   ```
+
+   该方法在主线程调用，通知渲染线程退出并唤醒它。做了唤醒操作后，主线程调用wait方法挂起，直到渲染线程退出为止。
+
+2. SurfaceView内部实现问题（TODO）：将SurfaceView放入RecyclerView中，不渲染任何画面，滑动列表时非常卡顿。而GLSurfaceView继承了SurfaceView，因此也有卡顿现象，怀疑是SurfaceView内部实现问题。
 
 ## TextureView
 
+相比于GLSurfaceView，TextureView默认没有渲染Thread，需要自己实现，相对比较复杂。
 
+### 各组件之间的关系
 
 ## 参考文献
 
