@@ -1,6 +1,10 @@
-# OpenGLES渲染YUV数据
+# Android OpenGLES渲染视频帧
 
+| 版本/状态 | 责任人 | 起止日期  | 备注     |
+| --------- | ------ | --------- | -------- |
+| V1.0/草稿 | 蔡政和 | 2018/2/24 | 创建文档 |
 
+[TOC]
 
 ## 前言
 
@@ -93,7 +97,7 @@ public static boolean detectOpenGLES20(Context context) {
 
 当GLSurfaceView处于可见状态时，会触发GLSurfaceView.surfaceCreated()，此时GLThread必须已经存在并处于运行状态，并相应调用Renderer.onSurfaceCreated()；如果GLThread不存在（setRenderer()还没有被调用），就会引起崩溃。
 
-为了提升GLSurfaceView的内聚性，简化外部调用者的使用流程，可以直接定义子类继承GLSurfaceView并实现Renderer接口。由GLSurfaceView内部决定setRenderer的时机（通常在构造方法中），避免上述的崩溃问题。优化后的UML类图如下所示：
+为了提升GLSurfaceView的内聚性，简化外部调用者的使用流程，可以直接定义子类**TPGLRenderView**继承GLSurfaceView并实现Renderer接口。由TPGLRenderView内部决定setRenderer的时机（通常在构造方法中），避免上述的崩溃问题。优化后的UML类图如下所示：
 
 ![GLSurfaceView2](doc_src/GLSurfaceView2.png)
 
@@ -217,27 +221,7 @@ mGLView.start();
 
 GLSurfaceView内部实现简单，外部调用方便，但是它也有不足之处：将GLSurfaceView放入RecyclerView中，会发现列表的滑动非常卡顿。主要有以下两方面的因素：
 
-1. 线程：VIew滑出界面后渲染线程将被销毁，此时主线程会阻塞的等待渲染线程销毁后再继续执行，导致UI卡顿。相关代码如下：
-
-   ```java
-   public void requestExitAndWait() {
-   	// don't call this from GLThread thread or it is a guaranteed
-   	// deadlock!
-   	synchronized(sGLThreadManager) {
-   	    mShouldExit = true;
-   	    sGLThreadManager.notifyAll();
-   	    while (! mExited) {
-   	        try {
-   	            sGLThreadManager.wait();
-   	        } catch (InterruptedException ex) {
-   	            Thread.currentThread().interrupt();
-   	        }
-   	    }
-   	}
-   }
-   ```
-
-   该方法在主线程调用，通知渲染线程退出并唤醒它。做了唤醒操作后，主线程调用wait方法挂起，直到渲染线程退出为止。
+1. 线程：VIew滑出界面后渲染线程将被销毁，此时主线程会阻塞的等待渲染线程销毁后再继续执行，导致UI卡顿。关于这一点的详细分析请查看TextureView的**结束线程**章节。
 
 2. SurfaceView内部实现问题：将SurfaceView放入RecyclerView中，不渲染任何画面，滑动列表时非常卡顿。而GLSurfaceView继承了SurfaceView，也有卡顿现象，怀疑是SurfaceView内部实现问题（TODO）。
 
@@ -293,7 +277,7 @@ private void startGLThread(int surfaceWidth, int surfaceHeight) {
 }
 ```
 
-如果渲染线程已经存在，不再重复创建。将SurfaceTexture以及宽高信息传入GLThread，在渲染线程中配置EGL环境并将SurfaceTexure交付给EGL。
+如果渲染线程已经存在，不再重复创建。将SurfaceTexture以及宽高信息传入GLThread，在渲染线程中配置EGL环境并将SurfaceTexure交付给内容源。
 
 ### GLThread
 
@@ -329,7 +313,7 @@ public void run() {
 
 #### 构造线程
 
-在GLThread的构造方法中会将SurfaceTexture绑定到GLProgram，并执行一次渲染操作，代码如下：
+在GLThread的构造方法中会将SurfaceTexture绑定到EGL，并执行一次渲染操作，代码如下：
 
 ```java
 public GLThread(SurfaceTexture surfaceTexture, int width, int height) {
@@ -338,7 +322,7 @@ public GLThread(SurfaceTexture surfaceTexture, int width, int height) {
 }
 ```
 
-exec()方法的实现将在消息传递机制章节详细介绍。
+exec()方法的实现将在**消息传递机制**章节详细介绍。
 
 #### 结束线程
 
@@ -365,9 +349,11 @@ public void requestExitAndWait() {
 
 #### 性能检测
 
-针对上述阻塞等待渲染线程结束的方式，在Demo中进行耗时检测，截图如下：
+针对UI线程阻塞等待渲染线程结束的方式，在Demo中进行耗时检测，日志如下：
 
-TODO
+![GLThread](doc_src/GLThread.jpg)
+
+UI线程挂起的时间时0.330s，唤醒的时间是0.341s，阻塞了0.011s，即11ms。这只是一个View的阻塞时间，若列表中一行有三个View，滑动一行就会阻塞33ms，滑动三行就会阻塞99ms，还是很容易被用户感知到的。
 
 ### 消息传递机制
 
@@ -443,11 +429,39 @@ TODO
 
 ### 问题记录
 
-TODO
+在实现TextureView的过程当中遇到了一些问题，在此记录一下：
+
+#### TextureView的内存溢出问题
+
+ **崩溃场景**
+
+在XML中定义TextureView，RecyclerView的item均通过XML静态实例化TextureView，上下滑动列表后崩溃，日志提示OOM： 
+
+```
+dup() failed in Parcel::read, i is 0, fds[i] is -1, fd_count is 2, error: Too many open files 
+```
+
+**分析思路**
+
+1. 内存溢出，直接想法一般是TextureView或者GLThread没有正常释放。但是考虑到RecyclerView的机制，TextureView会不断被复用，排除TextureView溢出的可能。
+
+2. 每次item移出界面时，强制GC，都会执行GLThread的finalize方法，意味着与TextureView绑定的GLThread被正常销毁，排除线程溢出的可能。
+
+3. 根据上述两点，推断可能是与线程绑定的GL ES配置没有清空。采用排除法验证该推断，先将GL ES配置的相关代码全部注释，发现不会发生崩溃。 继续缩小范围，最终发现创建和销毁GL配置的代码没有问题，是GL的swapBuffer方法（双缓冲机制）导致崩溃。 
+
+4. 只有调用swapBuffer方法才能使绘图生效，没有其它替代方案，并且该方法属于GL库的内部方法，没有优化空间。问题似乎变得无解。 重新整理思路，在之前的测试过程中已经知道ViewPager+TextureView是不会崩溃的，思考ViewPager和RecyclerView的不同点：ViewPager不会复用TextureView。
+
+5. 改变RecyclerView中使用TextureView的方式，每个Item都动态实例化TextureView，放弃使用RecyclerView的复用机制。此时滑动列表不再崩溃，并且item每次移出界面时，强制GC，都会执行TextureView的finalize方法，说明TextureView能够正常销毁，没有内存泄露发生。 
+
+6. 问题到此算是解决了，回过头来看这个问题，怀疑TextureView不能重复和多个不同的Thread绑定，否则容易造成fd不足（TODO）。
+
+**解决方案** 
+
+调整RecyclerView使用TextureView的方式，动态实例化TextureView，放弃自身的布局复用机制。
 
 ## 小结
 
-当前TextureView采用异步结束线程的方式，而GLSurfaceView则是同步结束线程。在**性能检测**章节也对两者的差异进行了量化分析。从实际应用中看，在滑动的列表中，TextureView不会出现卡顿问题，比GLSurfaceView的表现好很多。同时TextureView作为一个普通View，支持变形和缩放，使用起来比持有Surface的GLSurfaceView更加灵活。
+上文量化比较了TextureView和GLSurfaceView在列表中的表现，在滑动的列表中，TextureView不会出现卡顿问题，而GLSurfaceView的卡顿现象比较严重。从线程角度分析，TextureView采用异步结束线程的方式，而GLSurfaceView则是同步结束线程。在**性能检测**章节也对两者的差异进行了量化分析。同时TextureView作为一个普通View，支持变形和缩放，适用范围更广，因此在列表+播放器的场景下推荐使用TextureView来渲染YUV数据。
 
 ## 参考文献
 
