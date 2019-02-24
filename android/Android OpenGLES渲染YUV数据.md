@@ -73,12 +73,6 @@ GLProgram是项目封装的OpenGL ES工具类，用于将YUV转换成RGB数据�
 
 ## GLSurfaceView
 
-使用GLSurfaceView渲染YUV数据涉及到三个组件，分别是：
-
-1. GLSurfaceView：显示贴图的控件。
-2. Renderer：提供对GLSurfaceView状态的监听，当Surface创建、改变或绘制Frame时，由外部调用者实现自定义操作。
-3. GLProgram：OpenGL工具类，负责将视频帧转换成纹理（Shader）并贴到GLSurfaceView上。
-
 在开始实现渲染功能之前，首先判断手机是否支持OpenGLES2.0（一般的手机均会支持）：
 
 ```java
@@ -91,13 +85,19 @@ public static boolean detectOpenGLES20(Context context) {
 
 ### 各组件之间的关系
 
-当GLSurfaceView处于可见状态时，会触发GLSurfaceView.surfaceCreated()，此时GLThread必须已经存在并处于运行状态，并相应调用Renderer.onSurfaceCreated()；如果GLThread不存在（setRenderer()还没有被调用），就会引起崩溃。
+使用GLSurfaceView渲染YUV数据涉及到三个组件，分别是：
 
-> 一个保险的做法是创建GLSurfaceView后先调用getHolder().removeCallback(this)，然后在setRenderer()之后再重新调用getHolder().addCallback()来规避上述情况发生。当然，如果在触发GLSurfaceView.surfaceCreated()前已经调用过setRenderer()，上述情况不会发生。
+1. GLSurfaceView：显示贴图的控件。
+2. Renderer：提供对GLSurfaceView状态的监听，当Surface创建、改变或绘制Frame时，由外部调用者实现自定义操作。
+3. GLProgram：OpenGL工具类，负责将视频帧转换成纹理（Shader）并贴到GLSurfaceView上。
+
+当GLSurfaceView处于可见状态时，会触发GLSurfaceView.surfaceCreated()，此时GLThread必须已经存在并处于运行状态，并相应调用Renderer.onSurfaceCreated()；如果GLThread不存在（setRenderer()还没有被调用），就会引起崩溃。
 
 为了提升GLSurfaceView的内聚性，简化外部调用者的使用流程，可以直接定义子类继承GLSurfaceView并实现Renderer接口。由GLSurfaceView内部决定setRenderer的时机（通常在构造方法中），避免上述的崩溃问题。优化后的UML类图如下所示：
 
 ![GLSurfaceView2](doc_src/GLSurfaceView2.png)
+
+> 如果不确定setRenderer的时机，有一种保险的做法是创建GLSurfaceView后先调用getHolder().removeCallback(this)，然后在setRenderer()之后再重新调用getHolder().addCallback()来避免崩溃。当然，如果在触发GLSurfaceView.surfaceCreated()前已经调用过setRenderer()，上述情况不会发生。
 
 ### Renderer
 
@@ -148,11 +148,9 @@ public class TPGLRenderView extends GLSurfaceView implements GLSurfaceView.Rende
 
 考虑到后续还要使用TextureView渲染数据，因此将创建、调用GLProgram的相关流程封装在TPGLRenderer.java文件中，本文档中不再展开介绍。
 
-### 内部实现
+### 构造方法
 
-除了Renderer以外，TPGLRenderView中还集成了很多业务相关功能（singleTouch、doubleTouch、cancelZoom等），最终均调用了GLProgram相关的接口，此处不再展开介绍。本章节主要讲述TPGLRenderView的构造方法和renderFrame方法。
-
-构造方法的代码如下：
+构造方法用于初始化各组件并绑定GLSurfaceView和Renderer，代码如下：
 
 ```java
 public TPGLRenderView(Context context) {
@@ -166,10 +164,12 @@ public TPGLRenderView(Context context) {
 }
 ```
 
-可以看到，构造方法的第一行就是将实现的Renderer接口设置给GLSurfaceView，避免引起崩溃。setRenderMode方法用于控制GLSurfaceView渲染的时机，参数含义如下：
+可以看到，构造方法的第一行就是将实现的Renderer接口设置给GLSurfaceView，避免引起崩溃。setRenderMode方法用于控制GLSurfaceView渲染的时机，setRenderMode的参数含义如下：
 
 - RENDERMODE_WHEN_DIRTY：当Surface创建或requestRender方法被调用时重绘画面。
 - RENDERMODE_CONTINUOUSLY：持续重绘画面，重绘频率与手机屏幕一致。
+
+### renderFrame
 
 renderFrame方法用于传递并渲染一个视频帧，代码如下：
 
@@ -239,13 +239,215 @@ GLSurfaceView内部实现简单，外部调用方便，但是它也有不足之�
 
    该方法在主线程调用，通知渲染线程退出并唤醒它。做了唤醒操作后，主线程调用wait方法挂起，直到渲染线程退出为止。
 
-2. SurfaceView内部实现问题（TODO）：将SurfaceView放入RecyclerView中，不渲染任何画面，滑动列表时非常卡顿。而GLSurfaceView继承了SurfaceView，因此也有卡顿现象，怀疑是SurfaceView内部实现问题。
+2. SurfaceView内部实现问题：将SurfaceView放入RecyclerView中，不渲染任何画面，滑动列表时非常卡顿。而GLSurfaceView继承了SurfaceView，也有卡顿现象，怀疑是SurfaceView内部实现问题（TODO）。
 
 ## TextureView
 
-相比于GLSurfaceView，TextureView默认没有渲染Thread，需要自己实现，相对比较复杂。
+从实现角度看，TextureView包含三大组件：TextureView、SurfaceTextureListener、GLProgram，分别对应GLSurfaceView的GLSurfaceView、Renderer、GLProgram，两者组件关系基本类同，不再赘述。需要注意的是TextureView内部没有封装渲染Thread，需要手动封装。
 
-### 各组件之间的关系
+### SurfaceTextureListener
+
+SurfaceTextureListener接口的抽象方法如下：
+
+- onSurfaceTextureAvailable()：准备好SurfaceTexture时回调该方法，此时可以将SurfaceTexture送给内容源（EGL）使用。TextureView每次从后台到前台时均会调用该方法。
+- onSurfaceTextureSizeChanged()：SurfaceTexture的缓冲大小改变时回调该方法。
+- onSurfaceTextureDestroyed()：SurfaceTexture将要被销毁时回调该方法。若返回值为true，则后续不允许再对该SurfaceTexture做渲染操作；若返回值为false，需要再手动调用release方法释放SurfaceTexture。通常直接返回true即可。TextureView每次从前台转到后台时（onDetachedFromWindow）均会调用该方法。
+- onSurfaceTextureUpdated()：通过updateTexImage()方法更新指定的SurfaceTexture时回调该方法。
+
+代码如下：
+
+```java
+@Override
+public void onSurfaceTextureAvailable(SurfaceTexture surface, int width, int height) {
+    startGLThread(width, height);
+}
+@Override
+public void onSurfaceTextureSizeChanged(SurfaceTexture surface, int width, int height) {
+    if (mGLThread != null) {
+        mGLThread.exec(GLThread.MSG_WHAT_CHANGE_SURFACE, width, height);
+    }
+}
+@Override
+public boolean onSurfaceTextureDestroyed(SurfaceTexture surface) {
+    if (mGLThread != null) {
+        mGLThread.exec(GLThread.MSG_WHAT_DESTROY);
+        mGLThread = null;
+    }
+    return true;
+}
+@Override
+public void onSurfaceTextureUpdated(SurfaceTexture surface) {
+}
+```
+
+可以看到在onSurfaceTextureAvailable方法中启动了渲染线程，在onSurfaceTextureDestroyed方法中销毁了渲染线程，确保渲染线程的生命周期与SurfaceTexture保持同步。启动线程的代码如下：
+
+```java
+private void startGLThread(int surfaceWidth, int surfaceHeight) {
+    if (mGLThread != null && !mGLThread.isInterrupted()) {
+        return;
+    }
+    /**在子线程中进行绘制工作*/
+    mGLThread = new GLThread(getSurfaceTexture(), surfaceWidth, surfaceHeight);
+    mGLThread.start();
+}
+```
+
+如果渲染线程已经存在，不再重复创建。将SurfaceTexture以及宽高信息传入GLThread，在渲染线程中配置EGL环境并将SurfaceTexure交付给EGL。
+
+### GLThread
+
+#### run
+
+TextureView没有自带渲染线程，需要我们手动定义线程GLThread。上文已经提及，GLThread的生命周期与SurfaceTexture保持一致，因此它的run方法中需要使用while循环，保证线程不自动退出：
+
+```java
+public void run() {
+    try {
+        while (!Thread.interrupted()) {
+            synchronized (mLock) {
+                if (handleMessages(mGLMessage)) {
+                    continue;
+                }
+                mLock.wait();
+            }
+        }
+    } catch (InterruptedException e) {
+        Log.e(TAG, "Interrupted!");
+    } finally {
+        synchronized (mLock) {
+            mExited = true;
+            mLock.notifyAll();
+        }
+    }
+}
+```
+
+`try-catch`+`while(!Thread.interrupted())`是线程的常规用法，在发出interrupt()请求后，前者确保线程在阻塞状态下捕获异常，及时退出；后者确保线程在运行状态下判断interrupted()为true，正常退出。
+
+为了减小CPU的开销，调用wait()方法将渲染线程挂起，只有收到渲染请求时才唤醒线程。在上述写法中，创建线程后的第一次循环会多调用一次handleMessages，但由于此时的GLMessage为INVALID状态，所以不会做任何操作，直接挂起线程。
+
+#### 构造线程
+
+在GLThread的构造方法中会将SurfaceTexture绑定到GLProgram，并执行一次渲染操作，代码如下：
+
+```java
+public GLThread(SurfaceTexture surfaceTexture, int width, int height) {
+    this.mSurfaceTexture = surfaceTexture;
+    exec(MSG_WHAT_CREATE, width, height);
+}
+```
+
+exec()方法的实现将在消息传递机制章节详细介绍。
+
+#### 结束线程
+
+GLThread提供了两种结束线程的方式：`exec(GLThread.MSG_WHAT_DESTROY)`和`requestExitAndWait()`。前者是异步结束线程，不关心线程的结果；后者则是阻塞的等待线程结束。
+
+假如在UI线程调用了`requestExitAndWait()`，UI将阻塞的等待渲染线程结束。当渲染线程将要结束时，run方法的finally代码块中会将mExited变量置为true，并唤醒主线程。requestExitAndWait代码如下：
+
+```java
+public void requestExitAndWait() {
+    synchronized (mLock) {
+        exec(GLThread.MSG_WHAT_DESTROY);
+        while (!mExited) {
+            try {
+                mLock.wait();
+            } catch (InterruptedException ex) {
+                Thread.currentThread().interrupt();
+            }
+        }
+    }
+}
+```
+
+通常在两个时机结束渲染线程：GLThread的finalize()方法和TexutreView的onSurfaceTextureDestroyed()回调。与GLSurfaceView中结束线程的时机保持一致。
+
+#### 性能检测
+
+针对上述阻塞等待渲染线程结束的方式，在Demo中进行耗时检测，截图如下：
+
+TODO
+
+### 消息传递机制
+
+使用TextureView时，通常会在UI线程发起请求，在渲染线程执行对应的操作。如何将请求切换至GLThread执行呢？这里采用GLMessage+notify的方式将请求切换至渲染线程执行。下面以绘制一帧为例：
+
+1. 外部调用者在UI线程调用renderFrame方法，最终执行到GLThread的exec()方法，代码如下：
+
+   ```java
+   public void exec(int msgId, int width, int height) {
+       synchronized (mLock) {
+           mGLMessage.what = msgId;
+           mGLMessage.arg1 = width;
+           mGLMessage.arg2 = height;
+           mLock.notifyAll();
+       }
+   }
+   ```
+
+   该方法中会对GLMessage赋值，其中what表示消息类型，arg1和arg2则是对应消息的相关参数。赋值完毕后调用notifyAll方法唤醒渲染线程。
+
+2. 渲染线程唤醒后执行handleMessages()方法，代码如下：
+
+   ```java
+   private boolean handleMessages(Message msg) throws InterruptedException {
+       boolean drawFrame = false;
+       switch (msg.what) {
+           case MSG_WHAT_CREATE:
+               mEglHelper = new EGLHelper();
+               mEglHelper.setSurfaceType(EGLHelper.EGLHELPER_SURFACE_TYPE_WINDOW, mSurfaceTexture);
+               mEglHelper.initEgl(msg.arg1, msg.arg2);
+               mGLRenderer.onSurfaceCreated();
+               mGLRenderer.onSurfaceChanged(msg.arg1, msg.arg2);
+               drawFrame = true;
+               break;
+           case MSG_WHAT_CHANGE_SURFACE:
+               mGLRenderer.onSurfaceChanged(msg.arg1, msg.arg2);
+               drawFrame = true;
+               break;
+           case MSG_WHAT_DRAW_FRAME:
+               drawFrame = mGLRenderer.onDraw(mFrame, mIsNewFrame);
+               if (mIsNewFrame) {
+                   mIsNewFrame = false;
+               }
+               mEglHelper.swapBuffers();
+               break;
+           case MSG_WHAT_DESTROY:
+               mEglHelper.deinitEgl();
+               throw new InterruptedException();
+           case MSG_WHAT_INVALID:
+           default:
+               // ignore
+               break;
+       }
+       msg.what = MSG_WHAT_INVALID;
+       if (drawFrame)
+           exec(MSG_WHAT_DRAW_FRAME);
+       return drawFrame;
+   }
+   ```
+
+   在该方法中处理所有类型的消息，包括：
+
+   - MSG_WHAT_CREATE：配置EGL环境，创建GLProgram，绑定SurfaceTexture和EGL。在创建线程时（onSurfaceTextureAvailable）发起。
+   - MSG_WHAT_CHANGE_SURFACE：更新GLProgram，在SurfaceTexture更新时（onSurfaceTextureSizeChanged）发起。
+   - MSG_WHAT_DRAW_FRAME：绘制一帧。在调用requestRender时发起。
+   - MSG_WHAT_DESTROY：注销EGL环境，在结束线程时发起。
+   - MSG_WHAT_INVALID：无效消息，每次执行完消息后均将消息置为无效消息，避免渲染线程因为异常原因被唤醒后做出额外的操作。
+
+   上述有两个细节值得注意：
+
+   1. `drawFrame`：该变量用于控制执行完当前消息后，渲染线程是否挂起。若为true，则不挂起，继续绘制下一帧；若为false，则将线程挂起。
+   2. destroy消息的处理机制：在收到该消息时，并没有调用interrupt()方法，而是直接抛出了InterruptedException异常。原因是在运行状态下，interrupt()方法只能将interrupt标记位置为true，不能直接退出线程。执行完该方法后，还未判断interrupt标记位，线程就会执行wait挂起，永远无法退出。因此抛出异常才能够退出渲染线程。
+
+### 问题记录
+
+TODO
+
+## 小结
+
+当前TextureView采用异步结束线程的方式，而GLSurfaceView则是同步结束线程。在**性能检测**章节也对两者的差异进行了量化分析。从实际应用中看，在滑动的列表中，TextureView不会出现卡顿问题，比GLSurfaceView的表现好很多。同时TextureView作为一个普通View，支持变形和缩放，使用起来比持有Surface的GLSurfaceView更加灵活。
 
 ## 参考文献
 
