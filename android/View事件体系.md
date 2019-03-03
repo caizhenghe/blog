@@ -46,6 +46,8 @@ View是Android中所有控件的基类，不管是ImageView、TextView还是Rela
 
   ![scroll](doc_src/scroll.png)
 
+TODO：scrollTo/scrollBy
+
 ### MotionEvent
 
 典型的事件类型有如下几种：ACTION_DOWN、ACTION_MOVE、ACTION_UP，通过MotionEvent我们可以得到点击事件的x坐标和y坐标：getX()/getY()和getRawX()/getRawY()。getX()/getY()返回相对于当前View左上角的x和y坐标， getRawX()/getRawY()返回相对于手机屏幕左上角的x和y坐标。
@@ -97,7 +99,21 @@ public boolean onTouchEvent(MotionEvent event) {
 
 > getLocalVisibleRect()表示控件可见区域相对于**控件中内容左上角**的位置信息。getX()/getY()表示触摸事件相对于控件左上角的坐标信息，两者的坐标系保持一致，能够正确响应点击事件。
 
-## 事件分发机制
+### TouchSlop
+
+TODO
+
+### GestureDetector
+
+### VelocityTracker
+
+## 弹性滑动
+
+### Scroller
+
+### 动画
+
+### 延时策略
 
 ### 再论MontionEvent
 
