@@ -126,7 +126,7 @@ animator.start();
 
   ```java
   public abstract class BaseFragment extends Fragment {
-
+  
     @Override public void onDestroy() {
       super.onDestroy();
       RefWatcher refWatcher = ExampleApplication.getRefWatcher(getActivity());
@@ -135,7 +135,31 @@ animator.start();
   }
   ```
 
-  ​
+
+优点：使用简便，调用堆栈简单明了。
+
+缺点：调用堆栈可能出错，只能检测Activity和Fragment的内存泄露。
+
+#### profiler
+
+1. 点击force gc后点击Dump java heap
+2. 在Heap Dump界面选择Arrange by package，按包名排序，方便查找自己工程的类。
+3. 可以查看有内存中有哪些对象
+
+优点：使用简便。
+
+缺点：无法查看对象的引用链，跟踪具体问题
+
+#### MAT
+
+1. 在Profiler的基础上下载hprof文件
+2. 进入sdk->platform-tools文件夹，利用命令行工具执行hprof-conv命令，转换hprof文件：hprof-conv -z test.hprof test_mat.hprof
+3. 下载MAT：<http://www.eclipse.org/mat/downloads.php> 
+4. 使用MAT打开转换后的hprof文件，点击Histogram，输入我们想要查找的类，右键选择“Merge shortest path to GC Roots”，选择“exclude all ... reference”，就会显示出该对象完整的引用链。
+
+优点：可以查看对象的引用链，内容具体，方便追踪问题。
+
+缺点：使用复杂。
 
 ## 布局优化
 
@@ -187,7 +211,7 @@ ViewStub有以下几个局限性：
 
 ## 响应速度优化
 
-避免在主线程做耗时操作，这主要会体现在Activity的启动速度上。通常Activity如果5秒内无法响应屏幕触摸事件或者键盘输入事件就会出现ANR，Broadcast如果10秒内还没有执行完操作就会出现ANR。
+避免在主线程做耗时操作，这主要会体现在Activity的启动速度上。通常Activity如果5秒内无法响应屏幕触摸事件或者键盘输入事件就会出现ANR，Broadcast如果10秒内还没有执行完操作，或者Service20秒未响应就会出现ANR。
 
 ### ANR日志分析
 
@@ -196,10 +220,22 @@ ViewStub有以下几个局限性：
 导出traces文件：
 
 ```
-adb pull /data/anr/traces.txt
+adb pull /data/anr/traces.txt 电脑本机路径
 ```
 
+### ANR分析工具
 
+#### WatcherDog
+
+设置一个定时睡眠的子线程，每隔固定时间往主线程丢一个标志符，下次醒来后若标志符被主线程修改则说明没有发生ANR。
+
+缺点：可能会遗漏ANR问题
+
+#### AndroidPerformanceMonitor
+
+通过Looper的setLogging方法在执行任务前和任务后分别打印自定义的日志，判断是哪个任务发生了耗时操作。
+
+缺点：部分情况无法捕获ANR异常，比如在onTouchEvent中执行耗时操作。（猜测此时还未将触摸事件作为消息分发给主线程的Looper，因此没有捕获ANR）
 
 ## APP启动速度优化
 
