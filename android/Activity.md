@@ -59,3 +59,9 @@ Adb shell dumpsys activity
 - action
 - category
 - data
+
+## 启动流程
+
+1. Activity->AMS（Binder）（AMN，单例）
+2. AMS：ActivityStack、ActivityStackSupervisor
+3. AMS->ApplicationThread（Binder+Handler）
