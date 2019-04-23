@@ -6,6 +6,10 @@
 
 [TOC]
 
+## SparseArray
+
+## ArrayMap
+
 ## HashMap
 
 ### 特点
@@ -58,6 +62,8 @@ value不能为null
 内部维护了一个HashMap，本质上是Map的KeySet
 
 ## Vector
+
+线程安全
 
 ## ArrayList
 

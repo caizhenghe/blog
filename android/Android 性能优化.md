@@ -165,6 +165,8 @@ animator.start();
 
 > 减少无效的布局嵌套，在嵌套层级相同的情况下：FrameLayout > LinearLayout > RelativeLayout；
 
+原因：RelativeLayout中的子View会执行两次onMeasure；LinearLayout若指定了weight，也会执行两次onMeasure；FrameLayout只会执行一次。
+
 ### merge标签
 
 通常会与include标签搭配使用，在Adapter或者自定义ViewGroup中使用也比较频繁。下面是使用include属性的注意点：
