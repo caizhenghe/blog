@@ -23,9 +23,9 @@ String str3 = "aaabbb";
 String str4 = "aaa" + "bbb";
 String str5 = str1 + str2;
 
-str3 == str4;   		// true
-str3 == str5;			// false
-str3 == str5.intern();  // true
+str3 == str4;            // true
+str3 == str5;            // false
+str3 == str5.intern();   // true
 ```
 
 - 当赋值语句右边均是常量时，直接从常量池寻找对象，因此等式一返回true。

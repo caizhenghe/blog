@@ -60,39 +60,6 @@ Java虚拟机的内存结构分为5个部分：程序计数器、虚拟机栈、
 -  Java语言并不要求常量一定只有编译期才能产生，也就是可能将新的常量放入池中，这种特性被开发人员利用得比较多是便是String类的`intern()`方法。
 - 当常量池无法再申请到内存时会抛出OutOfMemoryError异常。
 
-#### instern
-
-TODO
-
-```java
-StringBuilder str1 = new StringBuffer("计算机").append("软件");
-str1.instern() == str1;
-
-StringBuilder str2 = new StringBuffer("ja").append("va");
-str2.instern() == str2;
-```
-
-- JDK1.6：instern方法会将首次出现的字符串常量放到常量池中；而StringBuilder创建的字符串位于堆中，因此两个等式均返回false。
-- JDK1.7：instern方法不再记录实例，而是在常量池中记录首次出现的实例引用，因此两者均指向堆中的对象，第一个等式返回true；由于之前常量池中已经存在"java"常量，直接复用，所以第二个等式返回false。
-
-```java
-String str1 = "aaa";
-String str2 = "bbb";
-String str3 = "aaabbb";
-String str4 = "aaa" + "bbb";
-String str5 = str1 + str2;
-
-str3 == str4;   		// true
-str3 == str5;			// false
-str3 == str5.instern(); // true
-```
-
-- 当赋值语句右边均是常量时，直接从常量池寻找对象，因此等式一返回true。
-- 当赋值语句右边是常量的引用时，会在堆中新分配对象，因此等式二返回false。
-- instern方法优先返回常量池的对象，因此等式三返回true。
-
-除了字符串，**-128～127的Integer对象也是放在常量池中**。
-
 ### 堆
 
 堆是Java虚拟机所管理的内存中最大的一块。Java堆是被所有线程共享的一块内存区域，在虚拟机启动的时候创建，此内存区域的唯一目的是存放对象实例，几乎所有的对象实例都在这里分配内存。所有的对象实例和数组都在堆上分配。 

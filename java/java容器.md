@@ -6,13 +6,9 @@
 
 [TOC]
 
-## SparseArray
+## Map
 
-## ArrayMap
-
-## HashMap
-
-### 特点
+### HashMap
 
 无序，散列表，数组+链表/红黑树
 
@@ -21,19 +17,35 @@
 
 默认负载因子为0.75，线程不安全
 
-## LikedHashMap
+### ArrayMap
 
-### 特点
+### SparseArray
+
+### HashTable
+
+默认初始大小：11； 负载因子：0.75
+
+数据结构：散列表；使用transient关键字修饰，表示不参与序列化过程，不能持久化存储
+
+特点：方法加锁，线程安全
+
+value不能为null
+
+### HashSet
+
+内部维护了一个HashMap，本质上是Map的KeySet
+
+### Collections.SynchronizedMap
+
+### ConcurrentMap
+
+### LinkedHashMap
 
 有序，以插入顺序或者访问顺序排序，在HashMap的基础上增加了一个双向链表来记录顺序。
 
-## TreeMap
-
-### 特点
+### TreeMap
 
 有序，以Key的大小排序
-
-### 使用场景
 
 判断某个有序序列是否与另一个有序序列相交(LeetCode 729)
 
@@ -47,25 +59,17 @@ Integer ceilingKey = mMap.ceilingKey(start);
 if(ceilingKey != null && ceilingKey < end) return false; // 相交
 ```
 
-## HashTable
+## 
 
-默认初始大小：11； 负载因子：0.75
+## List
 
-数据结构：散列表；使用transient关键字修饰，表示不参与序列化过程，不能持久化存储
+### ArrayList
 
-特点：方法加锁，线程安全
+### LinkedList
 
-value不能为null
+### Collections.SynchronizedList
 
-## HashSet
-
-内部维护了一个HashMap，本质上是Map的KeySet
-
-## Vector
+### Vector
 
 线程安全
-
-## ArrayList
-
-## LinkedList
 
