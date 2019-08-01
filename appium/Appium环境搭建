@@ -1,0 +1,31 @@
+Appium环境搭建
+
+1. 下载并安装nodejs：http://nodejs.cn，nodejs自带npm包管理器，可以使用"node -v"和"npm -v"查看对应版本
+2. 安装Appium：
+	a.方式一：官网下载：https://bitbucket.org/appium/appium.app/downloads/
+	b.方式二：Github下载：https://github.com/appium/appium-desktop/releases/tag/v1.13.0
+	c.方式三：npm下载（缺点是没有UI）：
+		npm install -g appium （如果下载时卡死，使用该命令代替：npm --registry http://registry.cnpmjs.org install appium -g）
+		appium –v
+		npm install -g appium-doctor
+		appium-doctor
+3. 安装python：
+	brew install pyenv
+	echo 'eval "$(pyenv init -)"' >> ~/.zshrc
+	brew install pyenv-virtualenv
+	pyenv install 3.7.4
+	pyenv rehash
+
+4. 使用pyenv切换python版本：
+	pyenv versions
+	pyenv global 3.7.4
+
+5. 安装Appium-Python-Client：
+	a.安装pip命令行：
+		brew install wget
+		wget --help
+		wget https://bootstrap.pypa.io/get-pip.py
+		sudo python get-pip.py
+	b.pip install Appium-Python-Client
+
+6. 安装pycharm：http://www.jetbrains.com/products.html#lang=python
