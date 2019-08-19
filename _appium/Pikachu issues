@@ -1,0 +1,8 @@
+Issues：
+
+1.tv.danmaku.bili.SplashActivity never started:
+参考资料：https://github.com/appium/appium/blob/master/docs/en/writing-running-appium/android/activity-startup.md
+原因：Appium自动检测到的appWaitActivity与App的首个页面不一致（可能是启动页出现后立即关闭，没有被Appium检测到，导致等待超时）
+解决思路：手动设置App的appWaitActivity，比如：MainActivityV2
+
+

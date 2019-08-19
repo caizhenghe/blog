@@ -11,7 +11,7 @@ Appium环境搭建
 		appium-doctor
 3. 安装python：
 	brew install pyenv
-	echo 'eval "$(pyenv init -)"' >> ~/.zshrc
+	echo 'eval "$(pyenv init -)"' >> ~/.bashrc
 	brew install pyenv-virtualenv
 	pyenv install 3.7.4
 	pyenv rehash
@@ -29,3 +29,7 @@ Appium环境搭建
 	b.pip install Appium-Python-Client
 
 6. 安装pycharm：http://www.jetbrains.com/products.html#lang=python
+
+tips:元素定位工具：sdk自带的uiautomatorviewer工具：
+/Users/caizhenghe/Library/Android/sdk/tools/bin/uiautomatorviewer
+

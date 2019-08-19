@@ -1,0 +1,35 @@
+Appium基本原理：
+将配置文件配置到Appium Server，Server向Bootstrap（Appium Client）发起测试请求，Bootstrap通过UIAnimator框架找到对应的View并进行自动化测试。
+
+Appium工作流程：
+1.启动Appium Server。
+2.编写Test Case的py文件，其中包含：
+	a.服务器地址
+	b.客户端信息
+	c.测试目标
+	d.向服务器的WebDriver发起会话请求，服务器返回客户端对应的Driver
+	e.通过Driver向服务端发起测试请求，服务器向客户端发起请求，客户端
+	  通过UIAnimator进行自动化测试并向服务器返回结果，服务器输出结果日志
+
+
+常用命令：
+启动Server:appium -a 127.0.0.1 -p 4723 --session-override
+
+查看并杀死Appium：
+ps -ef|grep appium
+kill pid
+
+赋权并执行py文件：
+chmode +x "filename"
+./"filename"
+
+
+Appium Server GUI配置：
+{
+    "app": "/Users/caizhenghe/data/iBiliPlayer.apk",
+    "platformName": "Android",
+    "platformVersion": "5.1",
+    "deviceName": "810EBME4BR26",
+    "appWaitActivity": "MainActivityV2",
+    "noReset": "true"
+}
