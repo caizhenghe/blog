@@ -11,9 +11,10 @@ Appium环境搭建
 		appium-doctor
 3. 安装python：
 	brew install pyenv
-	echo 'eval "$(pyenv init -)"' >> ~/.bashrc
 	brew install pyenv-virtualenv
 	pyenv install 3.7.4
+	echo 'eval "$(pyenv init -)"' >> ~/.bash_profile
+	source ~/.bash_profile
 	pyenv rehash
 
 4. 使用pyenv切换python版本：
