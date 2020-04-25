@@ -1,0 +1,15 @@
+./quicw f
+
+进入对应目录(例如common)
+./gradlew clean :biliid:assembleDebug
+
+
+进入对应目录
+ ./gradlew :upper:lint
+
+本地编译蓝版：
+local.properties中添加：module.app_key=android_b
+
+建立主仓和子仓关联的mr:
+./bbgit mr -t master
+

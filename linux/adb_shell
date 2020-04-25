@@ -1,0 +1,66 @@
+测试帧率详细信息：
+adb shell dumpsys gfxinfo packageName framestats
+
+帧简单信息：
+adb shell dumpsys gfxinfo packageName
+
+打印日志：
+adb logcat -v threadtime > ~/Desktop/1.txt
+清空日志缓存：
+adb logcat -c
+设置过滤器：
+adb logcat -s <TAG>
+
+查看所有进程的pid
+adb shell ps
+adb shell ps|grep <package_name>
+抓取堆栈信息：
+adb shell am dumpheap <pid> <output_file_name>
+
+查看cpu占用率
+adb shell
+top -H -p <pid>
+
+查看当前项目的内存
+adb shell dumpsys meminfo <package_name>
+
+手机cpu型号：
+adb shell
+cat /proc/cpuinfo
+
+模糊匹配查找文件： 
+find . -type f | grep "abc"
+
+正则表达式：
+搜索带有abc的日志：.*abc.*（.表示abc前面使用任意字符，*表示重复任意遍）
+搜索带有aaa或bbb的日志：.*(aaa|bbb).*
+
+
+打包aar
+进入解压后的aar目录，jar cvf <output.aar> .
+
+gitignore失效
+进入失效文件夹：git rm -r --cached .
+
+
+制作软连接：
+ln -s <input_path> <output_path>
+
+
+将字符串写入文件：
+echo "<word>" >> <file_path>
+
+添加环境变量：echo 'export PATH=${PATH}:<file_path>' >> ~/.bash_profile
+$PATH 和 ${PATH} 没有明显区别，后者可以限定字符串范围
+
+刷新环境变量：source ~/.bash_profile
+
+查看so版本号
+greadelf -d <file_path>
+
+查看文件的md5：md5 <file_path>
+
+回滚到某个指定的commit id
+git reset --hard <commit id>
+
+

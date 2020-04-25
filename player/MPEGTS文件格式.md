@@ -28,7 +28,7 @@ MPEG-2系统标准定义了两种方法来复用音频、视频和其他数据�
 - PS：为很少出现差错的应用而设计。比如DVD和SVCD。
 - TS：为较容易出现数据丢失的应用而设计，采用188Byte的固定大小包。
 
-![mpeg](/Users/caizhenghe/doc/ts_doc/doc_src/mpeg.png)
+![mpeg](doc_src/mpeg.png)
 
 TS（Transport Stream）是一种用于传输音视频的容器。最常见的场景是用于广播，如实时电视节目，是永远无法知道什么时候会有客户端进行数据的请求，其必备的一个特性就是：从任意一点接入获取数据，都能保证在较短时间内能播放成功。因此，TS格式常用于直播的数据流传输，HTTP Live Streaming（HLS）就是基于TS的一种直播协议。
 

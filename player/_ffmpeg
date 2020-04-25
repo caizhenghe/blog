@@ -1,0 +1,6 @@
+查看视频帧率：
+
+ffprobe <file-name>
+
+查看I、P、B：(关键帧的type为1)
+ffprobe -v quiet -show_frames <file-name> | grep "pict_type=<frame-type>" | wc -l

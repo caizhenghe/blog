@@ -1,9 +1,0 @@
-./quicw f
-
-进入对应目录
-./gradlew clean
-./gradlew :biliid:assembleDebug
-
-
-进入对应目录
- ./gradlew :upper:lint
